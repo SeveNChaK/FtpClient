@@ -8,6 +8,7 @@ import java.net.Socket;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class FtpClient implements DataReaderActionListener {
 
@@ -15,6 +16,7 @@ public class FtpClient implements DataReaderActionListener {
             "user",
             "pass",
             "cwd",
+            "pwd",
             "mkd",
             "rmd",
             "dele",
@@ -33,7 +35,7 @@ public class FtpClient implements DataReaderActionListener {
 
     private Socket passiveSocket;
 
-    private boolean isRunningDataThread = false;
+    private AtomicBoolean isRunningDataThread = new AtomicBoolean(false);
 
     private CmdOneArg lastCommand;
 
@@ -93,7 +95,7 @@ public class FtpClient implements DataReaderActionListener {
                 continue;
             }
 
-            if (isRunningDataThread) {
+            if (isRunningDataThread.get()) {
                 System.out.println("Подождите. Выполняется получение данных.");
                 continue;
             }
@@ -113,7 +115,8 @@ public class FtpClient implements DataReaderActionListener {
                     dataThread.setCurrentCommand(lastCommand);
                     dataThread.start();
 
-                    isRunningDataThread = true;
+                    isRunningDataThread.set(true);
+
                     passiveSocket = null;
                 } else {
                     System.out.println("Не удалось установить пассивное соединение!");
@@ -128,12 +131,12 @@ public class FtpClient implements DataReaderActionListener {
                     writer.write("stor " + fileName);
                     writer.newLine();
                     writer.flush();
-                } else  {
+                } else {
                     writer.write(inputStr);
                     writer.newLine();
                     writer.flush();
                 }
-            } else if (lastCommand.getCommand().equalsIgnoreCase("help")){
+            } else if (lastCommand.getCommand().equalsIgnoreCase("help")) {
                 System.out.println("Доступные команды:");
                 for (String item : availableCommands) {
                     System.out.println(item);
@@ -149,9 +152,11 @@ public class FtpClient implements DataReaderActionListener {
 
         try {
             if (dataThread != null) {
-                if (isRunningDataThread) {
+
+                if (isRunningDataThread.get()) {
                     writeMsg("abor");
                 }
+
                 dataThread.join();
             }
 
@@ -165,7 +170,7 @@ public class FtpClient implements DataReaderActionListener {
 
     @Override
     public void onDataReaderFinish() {
-        isRunningDataThread = false;
+        isRunningDataThread.set(false);
     }
 
     private void writeMsg(String msg) throws IOException {
