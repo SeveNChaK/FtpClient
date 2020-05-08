@@ -11,9 +11,11 @@ public class DataReader extends Thread {
     private final Socket socket;
 
     private CmdOneArg currentCommand;
+    private DataReaderActionListener actionListener;
 
-    public DataReader(Socket socket) {
+    public DataReader(Socket socket, DataReaderActionListener actionListener) {
         this.socket = socket;
+        this.actionListener = actionListener;
     }
 
     public void setCurrentCommand(CmdOneArg currentCommand) {
@@ -37,11 +39,9 @@ public class DataReader extends Thread {
             socket.close();
         } catch (IOException e) {
             System.out.println("Выполнение прервано! Данные не сохранились.");
+        } finally {
+            actionListener.onDataReaderFinish();
         }
-    }
-
-    public void close() throws IOException {
-        socket.close();
     }
 
     private void startTextReader() throws IOException {

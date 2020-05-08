@@ -9,19 +9,36 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-public class FtpClient {
+public class FtpClient implements DataReaderActionListener {
 
     private final List<String> availableCommands = Arrays.asList(
-            "user", "pass", "cwd", "mkd", "rmd", "dele", "pasv", "list", "nlst", "retr", "stor", "quit"
+            "user",
+            "pass",
+            "cwd",
+            "mkd",
+            "rmd",
+            "dele",
+            "pasv",
+            "list",
+            "nlst",
+            "retr",
+            "stor",
+            "quit",
+            "help"
     );
 
     private Socket socket;
     private BufferedReader reader;
     private BufferedWriter writer;
 
-    private boolean isPasvConnected = false;
+    private Socket passiveSocket;
+
+    private boolean isRunningDataThread = false;
+
     private CmdOneArg lastCommand;
+
     private DataReader dataThread;
+    private Thread mainReader;
 
     public FtpClient(String host, int port) throws IOException {
 
@@ -41,7 +58,7 @@ public class FtpClient {
     }
 
     private void startMainReader() {
-        new Thread(() -> {
+        mainReader = new Thread(() -> {
             try {
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -49,20 +66,18 @@ public class FtpClient {
                     System.out.println(line);
 
                     if (Parser.getInstance().isPassiveSocket(line)) {
-                        isPasvConnected = true;
-
                         InetSocketAddress inetSocketAddress = Parser.getInstance().parsePassiveSocket(line);
-                        Socket pasvSocket = new Socket(
+                        passiveSocket = new Socket(
                                 inetSocketAddress.getHostName(),
                                 inetSocketAddress.getPort()
                         );
-                        dataThread = new DataReader(pasvSocket);
                     }
                 }
             } catch (IOException e) {
-//                e.printStackTrace();
+                e.printStackTrace();
             }
-        }).start();
+        });
+        mainReader.start();
     }
 
     private void startMainWriter() throws IOException {
@@ -73,10 +88,13 @@ public class FtpClient {
 
             lastCommand = Parser.getInstance().parseCommand(inputStr);
 
-            //TODO проверка не выполняется ли че
-
             if (!availableCommands.contains(lastCommand.getCommand())) {
-                System.out.println("Не допустимая команда!");
+                System.out.println("Недопустимая команда!");
+                continue;
+            }
+
+            if (isRunningDataThread) {
+                System.out.println("Подождите. Выполняется получение данных.");
                 continue;
             }
 
@@ -85,17 +103,24 @@ public class FtpClient {
                     || lastCommand.getCommand().equalsIgnoreCase("list")
                     || lastCommand.getCommand().equalsIgnoreCase("nlst")
             ) {
-                if (!isPasvConnected) {
+                if (passiveSocket == null) {
                     System.out.println("Необходимо установить соединение для передачи данных. Используйте команду PASV.");
                     continue;
                 }
 
-                dataThread.setCurrentCommand(lastCommand);
-                dataThread.start();
+                if (passiveSocket != null) {
+                    dataThread = new DataReader(passiveSocket, this);
+                    dataThread.setCurrentCommand(lastCommand);
+                    dataThread.start();
 
-                isPasvConnected = false;
+                    isRunningDataThread = true;
+                    passiveSocket = null;
+                } else {
+                    System.out.println("Не удалось установить пассивное соединение!");
+                    passiveSocket = null;
+                    continue;
+                }
 
-                //TODO
                 if (lastCommand.getCommand().equalsIgnoreCase("stor")) {
                     String[] temp = lastCommand.getArgument().split("\\\\");
                     String fileName = temp[temp.length - 1];
@@ -108,6 +133,11 @@ public class FtpClient {
                     writer.newLine();
                     writer.flush();
                 }
+            } else if (lastCommand.getCommand().equalsIgnoreCase("help")){
+                System.out.println("Доступные команды:");
+                for (String item : availableCommands) {
+                    System.out.println(item);
+                }
             } else {
                 writer.write(inputStr);
                 writer.newLine();
@@ -115,9 +145,32 @@ public class FtpClient {
             }
         }
 
-        if (dataThread != null) {
-            dataThread.close();
+        writeMsg(inputStr);
+
+        try {
+            if (dataThread != null) {
+                if (isRunningDataThread) {
+                    writeMsg("abor");
+                }
+                dataThread.join();
+            }
+
+            mainReader.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
+
         socket.close();
+    }
+
+    @Override
+    public void onDataReaderFinish() {
+        isRunningDataThread = false;
+    }
+
+    private void writeMsg(String msg) throws IOException {
+        writer.write(msg);
+        writer.newLine();
+        writer.flush();
     }
 }
