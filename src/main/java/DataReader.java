@@ -67,7 +67,6 @@ public class DataReader extends Thread {
             fileOutputStream.write(buffer, 0, readCount);
         }
         fileOutputStream.close();
-        System.out.println("Файл скачан.");
     }
 
     private void startUpload() throws IOException {
@@ -80,6 +79,5 @@ public class DataReader extends Thread {
             socket.getOutputStream().write(buffer, 0, readCount);
         }
         fileInputStream.close();
-        System.out.println("Файл загружен на сервер.");
     }
 }

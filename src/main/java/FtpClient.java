@@ -73,6 +73,14 @@ public class FtpClient implements DataReaderActionListener {
                                 inetSocketAddress.getHostName(),
                                 inetSocketAddress.getPort()
                         );
+                    } else {
+                        if (dataThread != null && dataThread.isAlive()) {
+                            try {
+                                dataThread.join();
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        }
                     }
                 }
             } catch (IOException e) {
