@@ -1,6 +1,25 @@
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
+    }
+}
+
 plugins {
     id 'java'
 }
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'Main'
+        )
+    }
+}
+
+apply plugin: "com.github.johnrengelman.shadow"
 
 group 'ru.alex.ftp.client'
 version '1.0-SNAPSHOT'
@@ -17,4 +36,10 @@ dependencies {
     // https://mvnrepository.com/artifact/commons-net/commons-net
     compile group: 'commons-net', name: 'commons-net', version: '3.6'
 
+}
+
+shadowJar {
+    baseName = 'FtpClient'
+    classifier = null
+    version = null
 }
